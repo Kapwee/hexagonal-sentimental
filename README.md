@@ -21,7 +21,7 @@ then:
 ## Remarks
 
 - There is an **End-to-end test** marked as @ignored until you install postgres; this test is very convenient
-- The **auto-generation of the living diagram** uses the dot-diagram library that I've created. This dependency is brutally provided as a 'system' dependency until it's available on a public repository. Dot-diagram requires **Graphviz** installed (www.graphviz.org)
+- The **auto-generation of the living diagram** now uses the graphviz-java plugin instead of the dot-diagram library created by Cyriux. Therefore the installation of **Graphviz** isn't required.
 - The sound files are not mine and are only provided as examples; unfortunately I don't remember where they come from.
 
 *This project had been deleted and re-created after I realized some private keys had been accidentaly committed.*
