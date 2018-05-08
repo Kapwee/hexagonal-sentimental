@@ -52,6 +52,15 @@
 					</execution>
 				</executions>
 			</plugin>
+			<plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.7.0</version>
+                <configuration>
+                    <source>1.8</source>
+                    <target>1.8</target>
+                </configuration>
+            </plugin>
 		</plugins>
 	</build>
 
@@ -89,16 +98,11 @@
 		</dependency>
 
 
-		<!-- For Living Documentation, as long as dot-diagram is not in a maven 
-			repository. This is not the right way to do though. -->
 		<dependency>
-			<groupId>dot-diagram</groupId>
-			<artifactId>dot-diagram</artifactId>
-			<version>1.0</version>
-			<scope>system</scope>
-			<systemPath>${project.basedir}/dependencies/dot-diagram-1.0.jar</systemPath>
+		    <groupId>guru.nidi</groupId>
+		    <artifactId>graphviz-java</artifactId>
+		    <version>0.5.0</version>
 		</dependency>
-
 		<dependency>
 			<groupId>junit</groupId>
 			<artifactId>junit</artifactId>

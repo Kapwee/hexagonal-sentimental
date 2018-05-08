@@ -1,25 +1,35 @@
 package fr.devoxx.sentimental.livingdocumentation;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.livingdocumentation.dotdiagram.DotStyles.ASSOCIATION_EDGE_STYLE;
-import static org.livingdocumentation.dotdiagram.DotStyles.IMPLEMENTS_EDGE_STYLE;
 
-import java.io.InputStream;
+import java.io.File;
+import java.io.FileWriter;
 import java.lang.reflect.Field;
-import java.util.Properties;
-import java.util.function.Consumer;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 import java.util.function.Predicate;
-import java.util.stream.Stream;
-
+import java.util.stream.Collectors;
 import org.junit.Test;
-import org.livingdocumentation.dotdiagram.DotGraph;
-import org.livingdocumentation.dotdiagram.DotGraph.Cluster;
-import org.livingdocumentation.dotdiagram.DotGraph.Digraph;
-import org.livingdocumentation.dotdiagram.DotWriter;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.reflect.ClassPath;
 import com.google.common.reflect.ClassPath.ClassInfo;
+
+import guru.nidi.graphviz.attribute.Arrow;
+import guru.nidi.graphviz.attribute.Font;
+import guru.nidi.graphviz.attribute.Label;
+import guru.nidi.graphviz.attribute.RankDir;
+import guru.nidi.graphviz.attribute.Shape;
+import guru.nidi.graphviz.attribute.Style;
+import guru.nidi.graphviz.engine.Engine;
+import guru.nidi.graphviz.engine.Format;
+import guru.nidi.graphviz.engine.Graphviz;
+import guru.nidi.graphviz.model.Graph;
+import guru.nidi.graphviz.model.MutableGraph;
+import guru.nidi.graphviz.model.Node;
+import guru.nidi.graphviz.model.Serializer;
+import static guru.nidi.graphviz.model.Factory.*;
 
 /**
  * Living Diagram of the Hexagonal Architecture generated out of the code thanks
@@ -27,88 +37,100 @@ import com.google.common.reflect.ClassPath.ClassInfo;
  */
 public class ArchitectureDiagramTest {
 
-	private final DotGraph graph = new DotGraph("Hexagonal Architecture", "LR");
-
 	@Test
-	public void generateDiagram() throws Exception {
+	@SuppressWarnings("rawtypes")
+	public void generateDiagram() throws Exception {		
 		final ImmutableSet<ClassInfo> allClasses = ClassPath.from(Thread.currentThread().getContextClassLoader())
 				.getTopLevelClasses();
+		
 
-		final Digraph digraph = graph.getDigraph();
-		digraph.setOptions("rankdir=LR");
-
+		Graph graph = graph()
+				.directed()
+				.graphAttr().with(
+						RankDir.LEFT_TO_RIGHT, 
+						Label.of("Hexagonal Architecture").
+						locate(Label.Location.TOP),
+						Font.name("Verdana"),
+						Font.size(12)
+					)
+				.linkAttr().with(
+						Font.name("Verdana"),
+						Font.size(9),
+						Arrow.VEE
+					)
+				.nodeAttr().with(
+						Shape.RECTANGLE,
+						Font.name("Verdana"),
+						Font.size(9)
+					)
+		;
+		
 		final String prefix = "fr.devoxx.sentimental.";
-		Stream<ClassInfo> domain = allClasses.stream().filter(filter(prefix, "domain"));
-		final Cluster core = digraph.addCluster("hexagon");
-		core.setLabel("Core Domain");
+		List<ClassInfo> domain = allClasses.stream().filter(filter(prefix, "domain")).collect(Collectors.toList());
+		Graph hexagon = graph().cluster().graphAttr().with(Label.of("Core Domain"));
+	
+		HashMap<String, Node> nodes = new HashMap<>();
 
 		// add all domain model elements first
-		domain.forEach(new Consumer<ClassInfo>() {
-			public void accept(ClassInfo ci) {
-				final Class clazz = ci.load();
-				core.addNode(clazz.getName()).setLabel(clazz.getSimpleName()).setComment(clazz.getSimpleName());
-			}
-		});
-
-		Stream<ClassInfo> infra = allClasses.stream().filter(filter(prefix, "infra"));
-		infra.forEach(new Consumer<ClassInfo>() {
-			public void accept(ClassInfo ci) {
-				final Class clazz = ci.load();
-				digraph.addNode(clazz.getName()).setLabel(clazz.getSimpleName()).setComment(clazz.getSimpleName());
-			}
-		});
-		infra = allClasses.stream().filter(filter(prefix, "infra"));
-		infra.forEach(new Consumer<ClassInfo>() {
-			public void accept(ClassInfo ci) {
-				final Class clazz = ci.load();
-				// API
-				for (Field field : clazz.getDeclaredFields()) {
-					final Class<?> type = field.getType();
-					if (!type.isPrimitive()) {
-						digraph.addExistingAssociation(clazz.getName(), type.getName(), null, null,
-								ASSOCIATION_EDGE_STYLE);
-					}
-				}
-
-				// SPI
-				for (Class intf : clazz.getInterfaces()) {
-					digraph.addExistingAssociation(intf.getName(), clazz.getName(), null, null, IMPLEMENTS_EDGE_STYLE);
-				}
-			}
-		});
-
-		// then wire them together
-		domain = allClasses.stream().filter(filter(prefix, "domain"));
-		domain.forEach(new Consumer<ClassInfo>() {
-			public void accept(ClassInfo ci) {
-				final Class clazz = ci.load();
-				for (Field field : clazz.getDeclaredFields()) {
-					final Class<?> type = field.getType();
-					if (!type.isPrimitive()) {
-						digraph.addExistingAssociation(clazz.getName(), type.getName(), null, null,
-								ASSOCIATION_EDGE_STYLE);
-					}
-				}
-
-				for (Class intf : clazz.getInterfaces()) {
-					digraph.addExistingAssociation(intf.getName(), clazz.getName(), null, null, IMPLEMENTS_EDGE_STYLE);
-				}
-			}
-		});
-
-		// render into image
-		final Properties p = new Properties();
-		final String fileName = "graphviz-dot.properties";
-		final InputStream is = this.getClass().getResourceAsStream(fileName);
-		if (is == null) {
-			throw new RuntimeException("Could not load property file '" + fileName);
+		for(ClassInfo ci : domain) {
+			final Class clazz = ci.load();
+			nodes.put(clazz.getName(), node(clazz.getSimpleName()));
+			hexagon = hexagon.with(nodes.get(clazz.getName()));
 		}
-		p.load(is);
-		final DotWriter dotWriter = new DotWriter(p);
-		final String content = graph.render().trim();
-		final String imageName = dotWriter.toImage("hexagonal-architecture", content);
+		graph = graph.with(hexagon);
 
-		assertThat(imageName).isEqualTo("hexagonal-architecture.png");
+		List<ClassInfo> infra = allClasses.stream().filter(filter(prefix, "infra")).collect(Collectors.toList());
+		for(ClassInfo ci : infra) {
+			final Class clazz = ci.load();
+			nodes.put(clazz.getName(), node(clazz.getSimpleName()));
+			graph = graph.with(nodes.get(clazz.getName()));
+		}
+		
+		// links
+		List<ClassInfo> classes = new ArrayList<>();
+		classes.addAll(allClasses.stream().filter(filter(prefix, "infra")).collect(Collectors.toList()));
+		classes.addAll(allClasses.stream().filter(filter(prefix, "domain")).collect(Collectors.toList()));
+		for(ClassInfo ci : classes) {
+			final Class clazz = ci.load();
+			// API
+			Graph target = graph();
+			boolean link = false;
+			for (Field field : clazz.getDeclaredFields()) {
+				final Class<?> type = field.getType();
+				if (!type.isPrimitive()) {
+					if(nodes.get(type.getName()) != null && nodes.get(clazz.getName()) != null) {
+						target = target.with(nodes.get(type.getName()));
+						link = true;
+					}
+				}
+			}
+			if(link)
+				graph = graph.with(nodes.get(clazz.getName()).link(to(target)));
+
+			// SPI
+			target = graph();
+			link = false;
+			for (Class intf : clazz.getInterfaces()) {
+				if(nodes.get(intf.getName()) != null && nodes.get(clazz.getName()) != null) {
+					target = target.with(nodes.get(intf.getName()));
+					link = true;
+				}
+			}
+			if(link)
+				graph = graph.with(nodes.get(clazz.getName()).link(to(target).with(Style.DASHED, Arrow.NORMAL.open())));
+		}		
+
+
+		// saving dot file
+		FileWriter fw = new FileWriter("hexagonal-architecture.dot");
+		String src = new Serializer((MutableGraph) graph).serialize();
+		fw.write(src);
+		fw.close();
+		// render into image
+		Graphviz.fromGraph(graph).engine(Engine.DOT).render(Format.PNG).toFile(new File("hexagonal-architecture.png"));
+		
+		File file = new File("hexagonal-architecture.png");		
+		assertThat(file).exists();
 	}
 
 	private Predicate<ClassInfo> filter(final String prefix, final String layer) {
